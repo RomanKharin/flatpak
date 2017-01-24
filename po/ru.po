@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: flatpak 0.8.0\n"
 "Report-Msgid-Bugs-To: https://github.com/flatpak/flatpak/issues\n"
-"POT-Creation-Date: 2017-01-23 10:04+0300\n"
-"PO-Revision-Date: 2017-01-23 12:01+0300\n"
+"POT-Creation-Date: 2017-01-23 20:23+0300\n"
+"PO-Revision-Date: 2017-01-23 20:37+0300\n"
 "Last-Translator: Roman Kharin <romiq.kh@gmail.com>\n"
 "Language-Team: Russian (Russia) (https://www.transifex.com/flatpak/"
 "teams/70860/ru_RU/)\n"
@@ -284,7 +284,7 @@ msgstr ""
 #: app/flatpak-builtins-build.c:227
 #, c-format
 msgid "Missing '=' in bind mount option '%s'"
-msgstr "Отсутствует '=' в параметре связанного мотирования '%s'"
+msgstr "Отсутствует '=' в параметре связанного монтирования '%s'"
 
 #: app/flatpak-builtins-build.c:253 common/flatpak-run.c:4248
 msgid "Unable to start app"
@@ -488,12 +488,12 @@ msgstr "Информация о расширенных данных"
 
 #: app/flatpak-builtins-build-finish.c:47
 msgid "NAME:SHA256:DOWNLOAD-SIZE:INSTALL-SIZE:URL"
-msgstr "ИМЯ:SHA256:РАЗМЕР-СКАЧАЧИВАНИЯ:РАЗМЕР-УСТАНОВКИ:АДРЕС"
+msgstr "ИМЯ:SHA256:РАЗМЕР-ЗАГРУЗКИ:РАЗМЕР-УСТАНОВКИ:АДРЕС"
 
 #: app/flatpak-builtins-build-finish.c:353
 #, c-format
 msgid "To few elements in --extra-data argument %s"
-msgstr "Слишко мало элементов у параметра --extra-data %s"
+msgstr "Слишком мало элементов у параметра --extra-data %s"
 
 #: app/flatpak-builtins-build-finish.c:400
 msgid "DIRECTORY - Finalize a build directory"
@@ -737,7 +737,7 @@ msgstr "Не экспортирован\n"
 
 #: app/flatpak-builtins-document-list.c:56
 msgid "[APPID] - List exported files"
-msgstr "[ID_ПРИЛ] - Полказать список экспортированных файлов"
+msgstr "[ID_ПРИЛ] - Показать список экспортированных файлов"
 
 #: app/flatpak-builtins-document-unexport.c:55
 msgid "FILE - Unexport a file to apps"
@@ -933,7 +933,7 @@ msgstr "Установка: %s\n"
 
 #: app/flatpak-builtins-install.c:396
 msgid "OCI repo Filename or uri must be specified"
-msgstr "Должно быть указано имя файла репозитория OCI или адрес"
+msgstr "Должно быть указано имя файла репозитория OCI или его адрес"
 
 #: app/flatpak-builtins-install.c:435
 msgid "LOCATION/REMOTE [REF...] - Install applications or runtimes"
@@ -1066,7 +1066,7 @@ msgstr "Ошибка при создании дельты %s (%.10s): %s\n"
 #: app/flatpak-builtins-repo-update.c:120
 #, c-format
 msgid "Failed to generate delta %s (%.10s-%.10s): %s\n"
-msgstr "Ошибка при создании деьлты %s (%.10s-%.10s): %s\n"
+msgstr "Ошибка при создании дельты %s (%.10s-%.10s): %s\n"
 
 #: app/flatpak-builtins-repo-update.c:361
 msgid "LOCATION - Update repository metadata"
@@ -1194,9 +1194,7 @@ msgstr "Автоматически отвечать да на все вопро�
 #: app/flatpak-builtins-update.c:91
 #, c-format
 msgid "Updating appstream for remote %s\n"
-msgstr ""
-"Обновление ветки appstream для удалённого репозитория %s\n"
-"\n"
+msgstr "Обновление ветки appstream для удалённого репозитория %s\n"
 
 #: app/flatpak-builtins-update.c:121
 msgid "[REF...] - Update applications or runtimes"
@@ -1533,7 +1531,7 @@ msgstr "Пустое имя для расширенных данных по ад
 #: common/flatpak-dir.c:1883
 #, c-format
 msgid "Unsupported extra data uri %s"
-msgstr "Неподдерживаемые расширенные данные по адресу %s"
+msgstr "Не поддерживаемые расширенные данные по адресу %s"
 
 #: common/flatpak-dir.c:1893
 #, c-format
