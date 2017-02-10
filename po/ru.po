@@ -5,20 +5,18 @@
 # Roman Kharin <romiq.kh@gmail.com>, 2017.
 msgid ""
 msgstr ""
-"Project-Id-Version: flatpak 0.8.0\n"
+"Project-Id-Version: flatpak master\n"
 "Report-Msgid-Bugs-To: https://github.com/flatpak/flatpak/issues\n"
-"POT-Creation-Date: 2017-02-07 10:50+0300\n"
-"PO-Revision-Date: 2017-02-07 10:53+0300\n"
+"POT-Creation-Date: 2017-02-10 11:48+0300\n"
+"PO-Revision-Date: 2017-02-10 11:59+0300\n"
 "Last-Translator: Roman Kharin <romiq.kh@gmail.com>\n"
-"Language-Team: Russian (Russia) (https://www.transifex.com/flatpak/"
-"teams/70860/ru_RU/)\n"
+"Language-Team: romiq.kh@gmail.com\n"
 "Language: ru\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=4; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
-"%10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || (n"
-"%100>=11 && n%100<=14)? 2 : 3);\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
+"%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 "X-Generator: Poedit 1.8.7.1\n"
 
 #: app/flatpak-builtins-add-remote.c:58
@@ -306,7 +304,7 @@ msgstr "Не найдена точка расширения подходящая
 msgid "Missing '=' in bind mount option '%s'"
 msgstr "Отсутствует '=' в параметре связанного монтирования '%s'"
 
-#: app/flatpak-builtins-build.c:397 common/flatpak-run.c:4336
+#: app/flatpak-builtins-build.c:397 common/flatpak-run.c:4338
 msgid "Unable to start app"
 msgstr "Невозможно запустить приложение"
 
@@ -1487,7 +1485,7 @@ msgstr ""
 #: app/flatpak-transaction.c:462 common/flatpak-dir.c:979
 #: common/flatpak-dir.c:1236 common/flatpak-dir.c:1272
 #: common/flatpak-dir.c:1294 common/flatpak-dir.c:7638
-#: common/flatpak-utils.c:1116
+#: common/flatpak-utils.c:1184
 #, c-format
 msgid "%s not installed"
 msgstr "%s не установлено"
@@ -1934,30 +1932,30 @@ msgstr "Ошибка удаления временного файла"
 msgid "Failed to write to temporary file"
 msgstr "Ошибка записи во временный файла"
 
-#: common/flatpak-run.c:3218
+#: common/flatpak-run.c:3220
 #, c-format
 msgid "Failed to open flatpak-info temp file: %s"
 msgstr "Ошибка при открытии временного файла flatpak-info: %s"
 
-#: common/flatpak-run.c:3262
+#: common/flatpak-run.c:3264
 #, c-format
 msgid "Failed to open temp file: %s"
 msgstr "Ошибка при открытии временного файла: %s"
 
-#: common/flatpak-run.c:3562
+#: common/flatpak-run.c:3564
 msgid "Unable to create sync pipe"
 msgstr "Невозможно создать канал синхронизации"
 
-#: common/flatpak-run.c:3587
+#: common/flatpak-run.c:3589
 #, c-format
 msgid "Failed to open app info file: %s"
 msgstr "Ошибка при открытии файла с информацией о приложении: %s"
 
-#: common/flatpak-run.c:3617
+#: common/flatpak-run.c:3619
 msgid "Failed to sync with dbus proxy"
 msgstr "Ошибка при синхронизации с прокси dbus"
 
-#: common/flatpak-utils.c:2524
+#: common/flatpak-utils.c:2630
 msgid "No extra data sources"
 msgstr "Нет источников дополнительных данных"
 
