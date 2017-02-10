@@ -42,6 +42,7 @@ struct BuilderManifest
   char           *id;
   char           *id_platform;
   char           *branch;
+  char           *type;
   char           *runtime;
   char           *runtime_commit;
   char           *runtime_version;
@@ -58,6 +59,7 @@ struct BuilderManifest
   char          **cleanup;
   char          **cleanup_commands;
   char          **cleanup_platform;
+  char          **cleanup_platform_commands;
   char          **finish_args;
   char          **tags;
   char           *rename_desktop_file;
@@ -67,6 +69,7 @@ struct BuilderManifest
   char           *desktop_file_name_prefix;
   char           *desktop_file_name_suffix;
   gboolean        build_runtime;
+  gboolean        build_extension;
   gboolean        writable_sdk;
   gboolean        appstream_compose;
   char          **sdk_extensions;
@@ -110,8 +113,10 @@ enum {
   PROP_MODULES,
   PROP_CLEANUP,
   PROP_CLEANUP_COMMANDS,
+  PROP_CLEANUP_PLATFORM_COMMANDS,
   PROP_CLEANUP_PLATFORM,
   PROP_BUILD_RUNTIME,
+  PROP_BUILD_EXTENSION,
   PROP_SEPARATE_LOCALES,
   PROP_WRITABLE_SDK,
   PROP_APPSTREAM_COMPOSE,
@@ -153,6 +158,7 @@ builder_manifest_finalize (GObject *object)
   g_strfreev (self->cleanup);
   g_strfreev (self->cleanup_commands);
   g_strfreev (self->cleanup_platform);
+  g_strfreev (self->cleanup_platform_commands);
   g_strfreev (self->finish_args);
   g_strfreev (self->tags);
   g_free (self->rename_desktop_file);
@@ -306,6 +312,10 @@ builder_manifest_get_property (GObject    *object,
       g_value_set_boxed (value, self->cleanup_platform);
       break;
 
+    case PROP_CLEANUP_PLATFORM_COMMANDS:
+      g_value_set_boxed (value, self->cleanup_platform_commands);
+      break;
+
     case PROP_FINISH_ARGS:
       g_value_set_boxed (value, self->finish_args);
       break;
@@ -316,6 +326,10 @@ builder_manifest_get_property (GObject    *object,
 
     case PROP_BUILD_RUNTIME:
       g_value_set_boolean (value, self->build_runtime);
+      break;
+
+    case PROP_BUILD_EXTENSION:
+      g_value_set_boolean (value, self->build_extension);
       break;
 
     case PROP_SEPARATE_LOCALES:
@@ -492,6 +506,12 @@ builder_manifest_set_property (GObject      *object,
       g_strfreev (tmp);
       break;
 
+    case PROP_CLEANUP_PLATFORM_COMMANDS:
+      tmp = self->cleanup_platform_commands;
+      self->cleanup_platform_commands = g_strdupv (g_value_get_boxed (value));
+      g_strfreev (tmp);
+      break;
+
     case PROP_FINISH_ARGS:
       tmp = self->finish_args;
       self->finish_args = g_strdupv (g_value_get_boxed (value));
@@ -506,6 +526,10 @@ builder_manifest_set_property (GObject      *object,
 
     case PROP_BUILD_RUNTIME:
       self->build_runtime = g_value_get_boolean (value);
+      break;
+
+    case PROP_BUILD_EXTENSION:
+      self->build_extension = g_value_get_boolean (value);
       break;
 
     case PROP_SEPARATE_LOCALES:
@@ -729,6 +753,13 @@ builder_manifest_class_init (BuilderManifestClass *klass)
                                                        G_TYPE_STRV,
                                                        G_PARAM_READWRITE));
   g_object_class_install_property (object_class,
+                                   PROP_CLEANUP_PLATFORM_COMMANDS,
+                                   g_param_spec_boxed ("cleanup-platform-commands",
+                                                       "",
+                                                       "",
+                                                       G_TYPE_STRV,
+                                                       G_PARAM_READWRITE));
+  g_object_class_install_property (object_class,
                                    PROP_FINISH_ARGS,
                                    g_param_spec_boxed ("finish-args",
                                                        "",
@@ -738,6 +769,13 @@ builder_manifest_class_init (BuilderManifestClass *klass)
   g_object_class_install_property (object_class,
                                    PROP_BUILD_RUNTIME,
                                    g_param_spec_boolean ("build-runtime",
+                                                         "",
+                                                         "",
+                                                         FALSE,
+                                                         G_PARAM_READWRITE));
+  g_object_class_install_property (object_class,
+                                   PROP_BUILD_EXTENSION,
+                                   g_param_spec_boolean ("build-extension",
                                                          "",
                                                          "",
                                                          FALSE,
@@ -1156,13 +1194,20 @@ builder_manifest_init_app_dir (BuilderManifest *self,
   g_ptr_array_add (args, g_strdup ("build-init"));
   if (self->writable_sdk || self->build_runtime)
     {
-      g_ptr_array_add (args, g_strdup ("-w"));
+      if (self->build_runtime)
+        g_ptr_array_add (args, g_strdup ("--type=runtime"));
+      else
+        g_ptr_array_add (args, g_strdup ("--writable-sdk"));
 
       for (i = 0; self->sdk_extensions != NULL && self->sdk_extensions[i] != NULL; i++)
         {
           const char *ext = self->sdk_extensions[i];
           g_ptr_array_add (args, g_strdup_printf ("--sdk-extension=%s", ext));
         }
+    }
+  if (self->build_extension)
+    {
+      g_ptr_array_add (args, g_strdup ("--type=extension"));
     }
   if (self->tags)
     {
@@ -1236,6 +1281,7 @@ builder_manifest_checksum (BuilderManifest *self,
   builder_cache_checksum_boolean (cache, self->writable_sdk);
   builder_cache_checksum_strv (cache, self->sdk_extensions);
   builder_cache_checksum_boolean (cache, self->build_runtime);
+  builder_cache_checksum_boolean (cache, self->build_extension);
   builder_cache_checksum_boolean (cache, self->separate_locales);
   builder_cache_checksum_str (cache, self->base);
   builder_cache_checksum_str (cache, self->base_version);
@@ -1306,6 +1352,7 @@ builder_manifest_checksum_for_platform (BuilderManifest *self,
   builder_cache_checksum_str (cache, self->runtime_commit);
   builder_cache_checksum_str (cache, self->metadata_platform);
   builder_cache_checksum_strv (cache, self->cleanup_platform);
+  builder_cache_checksum_strv (cache, self->cleanup_platform_commands);
   builder_cache_checksum_strv (cache, self->platform_extensions);
 
   if (self->metadata_platform)
@@ -1363,7 +1410,14 @@ builder_manifest_build (BuilderManifest *self,
   builder_context_set_options (context, self->build_options);
   builder_context_set_global_cleanup (context, (const char **) self->cleanup);
   builder_context_set_global_cleanup_platform (context, (const char **) self->cleanup_platform);
+  if (self->build_runtime && self->build_extension)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "Can't build boh a runtime and an extension");
+      return FALSE;
+    }
   builder_context_set_build_runtime (context, self->build_runtime);
+  builder_context_set_build_extension (context, self->build_extension);
   builder_context_set_separate_locales (context, self->separate_locales);
 
   g_print ("Starting build of %s\n", self->id ? self->id : "app");
@@ -1418,6 +1472,7 @@ builder_manifest_build (BuilderManifest *self,
 static gboolean
 command (GFile      *app_dir,
          char      **env_vars,
+         char      **extra_args,
          const char *commandline,
          GError    **error)
 {
@@ -1429,6 +1484,11 @@ command (GFile      *app_dir,
   g_ptr_array_add (args, g_strdup ("build"));
 
   g_ptr_array_add (args, g_strdup ("--nofilesystem=host"));
+  if (extra_args)
+    {
+      for (i = 0; extra_args[i] != NULL; i++)
+        g_ptr_array_add (args, g_strdup (extra_args[i]));
+    }
 
   if (env_vars)
     {
@@ -1623,6 +1683,7 @@ builder_manifest_cleanup (BuilderManifest *self,
   g_autoptr(GFile) appdata_dir = NULL;
   g_autofree char *appdata_basename = NULL;
   g_autoptr(GFile) appdata_file = NULL;
+  g_autoptr(GFile) appdata_source = NULL;
   int i;
 
   builder_manifest_checksum_for_cleanup (self, cache, context);
@@ -1639,7 +1700,7 @@ builder_manifest_cleanup (BuilderManifest *self,
           env = builder_options_get_env (self->build_options, context);
           for (i = 0; self->cleanup_commands[i] != NULL; i++)
             {
-              if (!command (app_dir, env, self->cleanup_commands[i], error))
+              if (!command (app_dir, env, NULL, self->cleanup_commands[i], error))
                 return FALSE;
             }
         }
@@ -1672,8 +1733,15 @@ builder_manifest_cleanup (BuilderManifest *self,
         }
 
       app_root = g_file_get_child (app_dir, "files");
-      appdata_dir = g_file_resolve_relative_path (app_root, "share/appdata");
+
       appdata_basename = g_strdup_printf ("%s.appdata.xml", self->id);
+      appdata_dir = g_file_resolve_relative_path (app_root, "share/appdata");
+      appdata_source = g_file_get_child (appdata_dir, self->rename_appdata_file ? self->rename_appdata_file : appdata_basename);
+      if (!g_file_query_exists (appdata_source, NULL))
+        {
+          g_object_unref (appdata_dir);
+          appdata_dir = g_file_resolve_relative_path (app_root, "share/metainfo");
+        }
       appdata_file = g_file_get_child (appdata_dir, appdata_basename);
 
       if (self->rename_appdata_file != NULL)
@@ -2152,6 +2220,38 @@ builder_manifest_create_platform (BuilderManifest *self,
                             NULL, NULL, error))
             return FALSE;
         }
+      else
+        {
+          g_autoptr(GFile) metadata = g_file_get_child (app_dir, "metadata");
+          g_autoptr(GFile) dest_metadata = g_file_get_child (app_dir, "metadata.platform");
+          g_autoptr(GKeyFile) keyfile = g_key_file_new ();
+          g_autofree char *sdk_locale_id = builder_manifest_get_locale_id (self);
+          g_autofree char *sdk_debug_id = builder_manifest_get_debug_id (self);
+          g_autofree char *sdk_locale_group = g_strdup_printf ("Extension %s", sdk_locale_id);
+          g_autofree char *sdk_debug_group = g_strdup_printf ("Extension %s", sdk_debug_id);
+
+          if (!g_key_file_load_from_file (keyfile,
+                                          flatpak_file_get_path_cached (metadata),
+                                          G_KEY_FILE_KEEP_COMMENTS|G_KEY_FILE_KEEP_TRANSLATIONS,
+                                          error))
+            {
+              g_prefix_error (error, "Can't load metadata file: ");
+              return FALSE;
+            }
+
+          g_key_file_set_string (keyfile, "Runtime", "name", self->id_platform);
+
+          g_key_file_remove_group (keyfile, sdk_locale_group, NULL);
+          g_key_file_remove_group (keyfile, sdk_debug_group, NULL);
+
+          if (!g_key_file_save_to_file (keyfile,
+                                        flatpak_file_get_path_cached (dest_metadata),
+                                        error))
+            {
+              g_prefix_error (error, "Can't save metadata.platform: ");
+              return FALSE;
+            }
+        }
 
       for (l = self->expanded_modules; l != NULL; l = l->next)
         {
@@ -2241,6 +2341,18 @@ builder_manifest_create_platform (BuilderManifest *self,
                       return FALSE;
                     }
                 }
+            }
+        }
+
+      if (self->cleanup_platform_commands)
+        {
+          g_auto(GStrv) env = builder_options_get_env (self->build_options, context);
+          char *extra_args[] = { "--sdk-dir=platform", "--metadata=metadata.platform", NULL};
+
+          for (i = 0; self->cleanup_platform_commands[i] != NULL; i++)
+            {
+              if (!command (app_dir, env, extra_args, self->cleanup_platform_commands[i], error))
+                return FALSE;
             }
         }
 
@@ -2374,6 +2486,9 @@ builder_manifest_run (BuilderManifest *self,
         {
           const char *arg = self->finish_args[i];
           if (!g_str_has_prefix (arg, "--filesystem") &&
+              !g_str_has_prefix (arg, "--extension") &&
+              !g_str_has_prefix (arg, "--sdk") &&
+              !g_str_has_prefix (arg, "--runtime") &&
               !g_str_has_prefix (arg, "--command"))
             g_ptr_array_add (args, g_strdup (arg));
         }

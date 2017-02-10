@@ -72,6 +72,7 @@ void           flatpak_context_to_args (FlatpakContext *context,
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (FlatpakContext, flatpak_context_free)
 
 gboolean  flatpak_run_add_extension_args (GPtrArray    *argv_array,
+                                          char       ***envp_p,
                                           GKeyFile     *metakey,
                                           const char   *full_ref,
                                           GCancellable *cancellable,
@@ -103,6 +104,7 @@ typedef enum {
   FLATPAK_RUN_FLAG_LOG_SYSTEM_BUS     = (1 << 3),
   FLATPAK_RUN_FLAG_NO_SESSION_HELPER  = (1 << 4),
   FLATPAK_RUN_FLAG_MULTIARCH          = (1 << 5),
+  FLATPAK_RUN_FLAG_WRITABLE_ETC       = (1 << 6),
 } FlatpakRunFlags;
 
 gboolean flatpak_run_setup_base_argv (GPtrArray      *argv_array,

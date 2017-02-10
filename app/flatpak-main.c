@@ -38,6 +38,7 @@ static gboolean opt_ostree_verbose;
 static gboolean opt_version;
 static gboolean opt_default_arch;
 static gboolean opt_supported_arches;
+static gboolean opt_gl_drivers;
 static gboolean opt_user;
 static char *opt_installation;
 
@@ -78,10 +79,11 @@ static FlatpakCommand commands[] = {
 
    /* translators: please keep the leading newline and space */
   { N_("\n Manage remote repositories") },
+  { "remotes", N_("List all configured remotes"), flatpak_builtin_list_remotes, flatpak_complete_list_remotes },
   { "remote-add", N_("Add a new remote repository (by URL)"), flatpak_builtin_add_remote, flatpak_complete_add_remote },
   { "remote-modify", N_("Modify properties of a configured remote"), flatpak_builtin_modify_remote, flatpak_complete_modify_remote },
   { "remote-delete", N_("Delete a configured remote"), flatpak_builtin_delete_remote, flatpak_complete_delete_remote },
-  { "remote-list", N_("List all configured remotes"), flatpak_builtin_list_remotes, flatpak_complete_list_remotes },
+  { "remote-list", NULL, flatpak_builtin_list_remotes, flatpak_complete_list_remotes, TRUE },
   { "remote-ls", N_("List contents of a configured remote"), flatpak_builtin_ls_remote, flatpak_complete_ls_remote },
 
    /* translators: please keep the leading newline and space */
@@ -110,6 +112,7 @@ static GOptionEntry empty_entries[] = {
   { "version", 0, 0, G_OPTION_ARG_NONE, &opt_version, N_("Print version information and exit"), NULL },
   { "default-arch", 0, 0, G_OPTION_ARG_NONE, &opt_default_arch, N_("Print default arch and exit"), NULL },
   { "supported-arches", 0, 0, G_OPTION_ARG_NONE, &opt_supported_arches, N_("Print supported arches and exit"), NULL },
+  { "gl-drivers", 0, 0, G_OPTION_ARG_NONE, &opt_gl_drivers, N_("Print active gl drivers and exit"), NULL },
   { NULL }
 };
 
@@ -233,6 +236,15 @@ flatpak_option_context_parse (GOptionContext     *context,
       int i;
       for (i = 0; arches[i] != NULL; i++)
         g_print ("%s\n", arches[i]);
+      exit (EXIT_SUCCESS);
+    }
+
+  if (opt_gl_drivers)
+    {
+      const char **drivers = flatpak_get_gl_drivers ();
+      int i;
+      for (i = 0; drivers[i] != NULL; i++)
+        g_print ("%s\n", drivers[i]);
       exit (EXIT_SUCCESS);
     }
 

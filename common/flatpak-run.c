@@ -2021,8 +2021,12 @@ flatpak_run_add_journal_args (GPtrArray *argv_array)
 static char *
 create_proxy_socket (char *template)
 {
-  g_autofree char *proxy_socket = g_build_filename (g_get_user_runtime_dir (), template, NULL);
+  g_autofree char *proxy_socket_dir = g_build_filename (g_get_user_runtime_dir (), ".dbus-proxy", NULL);
+  g_autofree char *proxy_socket = g_build_filename (proxy_socket_dir, template, NULL);
   int fd;
+
+  if (!glnx_shutil_mkdir_p_at (AT_FDCWD, proxy_socket_dir, 0755, NULL, NULL))
+    return NULL;
 
   fd = g_mkstemp (proxy_socket);
   if (fd == -1)
@@ -2061,7 +2065,7 @@ flatpak_run_add_system_dbus_args (FlatpakContext *context,
   else if (dbus_proxy_argv &&
            g_hash_table_size (context->system_bus_policy) > 0)
     {
-      g_autofree char *proxy_socket = create_proxy_socket (".system-bus-proxy-XXXXXX");
+      g_autofree char *proxy_socket = create_proxy_socket ("system-bus-proxy-XXXXXX");
 
       if (proxy_socket == NULL)
         return FALSE;
@@ -2112,7 +2116,7 @@ flatpak_run_add_session_dbus_args (GPtrArray *argv_array,
     }
   else if (dbus_proxy_argv && dbus_address != NULL)
     {
-      g_autofree char *proxy_socket = create_proxy_socket (".session-bus-proxy-XXXXXX");
+      g_autofree char *proxy_socket = create_proxy_socket ("session-bus-proxy-XXXXXX");
 
       if (proxy_socket == NULL)
         return FALSE;
@@ -2159,6 +2163,7 @@ flatpak_add_bus_filters (GPtrArray      *dbus_proxy_argv,
 
 gboolean
 flatpak_run_add_extension_args (GPtrArray    *argv_array,
+                                char       ***envp_p,
                                 GKeyFile     *metakey,
                                 const char   *full_ref,
                                 GCancellable *cancellable,
@@ -2167,6 +2172,10 @@ flatpak_run_add_extension_args (GPtrArray    *argv_array,
   g_auto(GStrv) parts = NULL;
   gboolean is_app;
   GList *extensions, *l;
+  g_autoptr(GHashTable) mounted_tmpfs =
+    g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  g_autoptr(GHashTable) created_symlink =
+    g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
   parts = g_strsplit (full_ref, "/", 0);
   if (g_strv_length (parts) != 4)
@@ -2180,26 +2189,73 @@ flatpak_run_add_extension_args (GPtrArray    *argv_array,
   for (l = extensions; l != NULL; l = l->next)
     {
       FlatpakExtension *ext = l->data;
-      g_autofree char *full_directory = g_build_filename (is_app ? "/app" : "/usr", ext->directory, NULL);
+      g_autofree char *directory = g_build_filename (is_app ? "/app" : "/usr", ext->directory, NULL);
+      g_autofree char *full_directory = g_build_filename (directory, ext->subdir_suffix, NULL);
       g_autofree char *ref = g_build_filename (full_directory, ".ref", NULL);
       g_autofree char *real_ref = g_build_filename (ext->files_path, ext->directory, ".ref", NULL);
+      int i;
 
       if (ext->needs_tmpfs)
         {
-          g_autofree char *parent = g_path_get_dirname (full_directory);
-          add_args (argv_array,
-                    "--tmpfs", parent,
-                    NULL);
+          g_autofree char *parent = g_path_get_dirname (directory);
+
+          if (g_hash_table_lookup (mounted_tmpfs, parent) == NULL)
+            {
+              add_args (argv_array,
+                        "--tmpfs", parent,
+                        NULL);
+              g_hash_table_insert (mounted_tmpfs, g_steal_pointer (&parent), "mounted");
+            }
         }
 
       add_args (argv_array,
-                "--bind", ext->files_path, full_directory,
+                "--ro-bind", ext->files_path, full_directory,
                 NULL);
 
       if (g_file_test (real_ref, G_FILE_TEST_EXISTS))
         add_args (argv_array,
                   "--lock-file", ref,
                   NULL);
+
+      if (ext->add_ld_path)
+        {
+          g_autofree char *ld_path = g_build_filename (full_directory, ext->add_ld_path, NULL);
+          const gchar *old_ld_path = g_environ_getenv (*envp_p, "LD_LIBRARY_PATH");
+          g_autofree char *new_ld_path = NULL;
+
+          if (old_ld_path != NULL)
+            new_ld_path = g_strconcat (old_ld_path, ":", ld_path, NULL);
+          else
+            new_ld_path = g_strdup (new_ld_path);
+
+          *envp_p = g_environ_setenv (*envp_p, "LD_LIBRARY_PATH", new_ld_path , TRUE);
+        }
+
+      for (i = 0; ext->merge_dirs != NULL && ext->merge_dirs[i] != NULL; i++)
+        {
+          g_autofree char *parent = g_path_get_dirname (directory);
+          g_autofree char *merge_dir = g_build_filename (parent, ext->merge_dirs[i], NULL);
+          g_autofree char *source_dir = g_build_filename (ext->files_path, ext->merge_dirs[i], NULL);
+          g_auto(GLnxDirFdIterator) source_iter = { 0 };
+          struct dirent *dent;
+
+          if (glnx_dirfd_iterator_init_at (AT_FDCWD, source_dir, TRUE, &source_iter, NULL))
+            {
+              while (glnx_dirfd_iterator_next_dent (&source_iter, &dent, NULL, NULL) && dent != NULL)
+                {
+                  g_autofree char *symlink_path = g_build_filename (merge_dir, dent->d_name, NULL);
+                  /* Only create the first, because extensions are listed in prio order */
+                  if (g_hash_table_lookup (created_symlink, symlink_path) == NULL)
+                    {
+                      g_autofree char *symlink = g_build_filename (directory, ext->merge_dirs[i], dent->d_name, NULL);
+                      add_args (argv_array,
+                                "--symlink", symlink, symlink_path,
+                                NULL);
+                      g_hash_table_insert (created_symlink, g_steal_pointer (&symlink_path), "created");
+                    }
+                }
+            }
+        }
     }
 
   g_list_free_full (extensions, (GDestroyNotify) flatpak_extension_free);
@@ -2474,23 +2530,25 @@ flatpak_run_add_environment_args (GPtrArray      *argv_array,
       if (context->devices & FLATPAK_CONTEXT_DEVICE_DRI)
         {
           g_debug ("Allowing dri access");
-          if (g_file_test ("/dev/dri", G_FILE_TEST_IS_DIR))
-            add_args (argv_array, "--dev-bind", "/dev/dri", "/dev/dri", NULL);
-          if (g_file_test ("/dev/mali", G_FILE_TEST_EXISTS))
+          int i;
+          char *dri_devices[] = {
+            "/dev/dri",
+            /* mali */
+            "/dev/mali",
+            "/dev/umplock",
+            /* nvidia */
+            "/dev/nvidiactl",
+            "/dev/nvidia0",
+            "/dev/nvidia-modeset",
+          };
+
+          for (i = 0; i < G_N_ELEMENTS(dri_devices); i++)
             {
-              add_args (argv_array,
-                        "--dev-bind", "/dev/mali", "/dev/mali",
-                        "--dev-bind", "/dev/umplock", "/dev/umplock",
-                        NULL);
-            }
-          if (g_file_test ("/dev/nvidiactl", G_FILE_TEST_EXISTS))
-            {
-              add_args (argv_array,
-                        "--dev-bind", "/dev/nvidiactl", "/dev/nvidiactl",
-                        "--dev-bind", "/dev/nvidia0", "/dev/nvidia0",
-                        NULL);
+              if (g_file_test (dri_devices[i], G_FILE_TEST_EXISTS))
+                add_args (argv_array, "--dev-bind", dri_devices[i], dri_devices[i], NULL);
             }
         }
+
       if (context->devices & FLATPAK_CONTEXT_DEVICE_KVM)
         {
           g_debug ("Allowing kvm access");
@@ -2688,7 +2746,7 @@ flatpak_run_add_environment_args (GPtrArray      *argv_array,
           xdg_path = get_xdg_dir_from_string (filesystem, &rest, &where);
 
           if (xdg_path != NULL && *rest != 0 &&
-              mode > FLATPAK_FILESYSTEM_MODE_READ_WRITE)
+              mode >= FLATPAK_FILESYSTEM_MODE_READ_WRITE)
             {
               g_autoptr(GFile) app_version = g_file_get_child (app_id_dir, where);
               g_autoptr(GFile) app_version_subdir = g_file_resolve_relative_path (app_version, rest);
@@ -3083,7 +3141,7 @@ add_font_path_args (GPtrArray *argv_array)
   if (g_file_test (SYSTEM_FONTS_DIR, G_FILE_TEST_EXISTS))
     {
       add_args (argv_array,
-                "--bind", SYSTEM_FONTS_DIR, "/run/host/fonts",
+                "--ro-bind", SYSTEM_FONTS_DIR, "/run/host/fonts",
                 NULL);
     }
 
@@ -3094,13 +3152,13 @@ add_font_path_args (GPtrArray *argv_array)
   if (g_file_query_exists (user_font1, NULL))
     {
       add_args (argv_array,
-                "--bind", flatpak_file_get_path_cached (user_font1), "/run/host/user-fonts",
+                "--ro-bind", flatpak_file_get_path_cached (user_font1), "/run/host/user-fonts",
                 NULL);
     }
   else if (g_file_query_exists (user_font2, NULL))
     {
       add_args (argv_array,
-                "--bind", flatpak_file_get_path_cached (user_font2), "/run/host/user-fonts",
+                "--ro-bind", flatpak_file_get_path_cached (user_font2), "/run/host/user-fonts",
                 NULL);
     }
 }
@@ -3247,7 +3305,7 @@ add_monitor_path_args (gboolean use_session_helper,
                                                         NULL, NULL))
     {
       add_args (argv_array,
-                "--bind", monitor_path, "/run/host/monitor",
+                "--ro-bind", monitor_path, "/run/host/monitor",
                 NULL);
       add_args (argv_array,
                 "--symlink", "/run/host/monitor/localtime", "/etc/localtime",
@@ -3266,11 +3324,27 @@ add_monitor_path_args (gboolean use_session_helper,
         {
           char localtime[PATH_MAX + 1];
           ssize_t symlink_size;
+          gboolean is_reachable = FALSE;
 
           symlink_size = readlink ("/etc/localtime", localtime, sizeof (localtime) - 1);
           if (symlink_size > 0)
             {
+              g_autoptr(GFile) base_file = NULL;
+              g_autoptr(GFile) target_file = NULL;
+              g_autofree char *target_canonical = NULL;
+
+              /* readlink() does not append a null byte to the buffer. */
               localtime[symlink_size] = 0;
+
+              base_file = g_file_new_for_path ("/etc");
+              target_file = g_file_resolve_relative_path (base_file, localtime);
+              target_canonical = g_file_get_path (target_file);
+
+              is_reachable = g_str_has_prefix (target_canonical, "/usr/");
+            }
+
+          if (is_reachable)
+            {
               add_args (argv_array,
                         "--symlink", localtime, "/etc/localtime",
                         NULL);
@@ -3278,7 +3352,7 @@ add_monitor_path_args (gboolean use_session_helper,
           else
             {
               add_args (argv_array,
-                        "--bind", "/etc/localtime", "/etc/localtime",
+                        "--ro-bind", "/etc/localtime", "/etc/localtime",
                         NULL);
             }
         }
@@ -3286,7 +3360,7 @@ add_monitor_path_args (gboolean use_session_helper,
       if (g_file_test ("/etc/resolv.conf", G_FILE_TEST_EXISTS))
         {
           add_args (argv_array,
-                    "--bind", "/etc/resolv.conf", "/etc/resolv.conf",
+                    "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
                     NULL);
         }
     }
@@ -3393,6 +3467,7 @@ prepend_bwrap_argv_wrapper (GPtrArray *argv,
   gsize bwrap_args_len;
   glnx_fd_close int bwrap_args_fd = -1;
   g_autofree char *bwrap_args_data = NULL;
+  g_autofree char *proxy_socket_dir = g_build_filename (g_get_user_runtime_dir (), ".dbus-proxy/", NULL);
 
   if (!glnx_dirfd_iterator_init_at (AT_FDCWD, "/", FALSE, &dir_iter, error))
     return FALSE;
@@ -3437,6 +3512,10 @@ prepend_bwrap_argv_wrapper (GPtrArray *argv,
           g_ptr_array_add (bwrap_args, g_strconcat ("/", dent->d_name, NULL));
         }
     }
+
+  g_ptr_array_add (bwrap_args, g_strdup ("--bind"));
+  g_ptr_array_add (bwrap_args, g_strdup (proxy_socket_dir));
+  g_ptr_array_add (bwrap_args, g_strdup (proxy_socket_dir));
 
   g_ptr_array_add (bwrap_args, g_strdup ("--ro-bind-data"));
   g_ptr_array_add (bwrap_args, g_strdup_printf ("%d", app_info_fd));
@@ -3860,17 +3939,27 @@ flatpak_run_setup_base_argv (GPtrArray      *argv_array,
             "--ro-bind", "/sys/class", "/sys/class",
             "--ro-bind", "/sys/dev", "/sys/dev",
             "--ro-bind", "/sys/devices", "/sys/devices",
+            NULL);
+
+  if (flags & FLATPAK_RUN_FLAG_WRITABLE_ETC)
+    add_args (argv_array,
+              "--dir", "/usr/etc",
+              "--symlink", "usr/etc", "/etc",
+              NULL);
+
+  add_args (argv_array,
             "--bind-data", passwd_fd_str, "/etc/passwd",
             "--bind-data", group_fd_str, "/etc/group",
             NULL);
 
   if (g_file_test ("/etc/machine-id", G_FILE_TEST_EXISTS))
-    add_args (argv_array, "--bind", "/etc/machine-id", "/etc/machine-id", NULL);
+    add_args (argv_array, "--ro-bind", "/etc/machine-id", "/etc/machine-id", NULL);
   else if (g_file_test ("/var/lib/dbus/machine-id", G_FILE_TEST_EXISTS))
-    add_args (argv_array, "--bind", "/var/lib/dbus/machine-id", "/etc/machine-id", NULL);
+    add_args (argv_array, "--ro-bind", "/var/lib/dbus/machine-id", "/etc/machine-id", NULL);
 
   etc = g_file_get_child (runtime_files, "etc");
-  if (g_file_query_exists (etc, NULL))
+  if ((flags & FLATPAK_RUN_FLAG_WRITABLE_ETC) == 0 &&
+      g_file_query_exists (etc, NULL))
     {
       g_auto(GLnxDirFdIterator) dfd_iter = { 0, };
       struct dirent *dent;
@@ -3955,7 +4044,8 @@ flatpak_run_setup_base_argv (GPtrArray      *argv_array,
     return FALSE;
 #endif
 
-  add_monitor_path_args ((flags & FLATPAK_RUN_FLAG_NO_SESSION_HELPER) == 0, argv_array);
+  if ((flags & FLATPAK_RUN_FLAG_WRITABLE_ETC) == 0)
+    add_monitor_path_args ((flags & FLATPAK_RUN_FLAG_NO_SESSION_HELPER) == 0, argv_array);
 
   return TRUE;
 }
@@ -4145,10 +4235,10 @@ flatpak_run_app (const char     *app_ref,
     return FALSE;
 
   if (metakey != NULL &&
-      !flatpak_run_add_extension_args (argv_array, metakey, app_ref, cancellable, error))
+      !flatpak_run_add_extension_args (argv_array, &envp, metakey, app_ref, cancellable, error))
     return FALSE;
 
-  if (!flatpak_run_add_extension_args (argv_array, runtime_metakey, runtime_ref, cancellable, error))
+  if (!flatpak_run_add_extension_args (argv_array, &envp, runtime_metakey, runtime_ref, cancellable, error))
     return FALSE;
 
   add_document_portal_args (argv_array, app_ref_parts[1]);

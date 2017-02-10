@@ -30,6 +30,7 @@
 
 #include "flatpak-utils.h"
 #include "builder-context.h"
+#include "builder-cache.h"
 
 struct BuilderContext
 {
@@ -54,6 +55,7 @@ struct BuilderContext
   char          **cleanup_platform;
   gboolean        use_ccache;
   gboolean        build_runtime;
+  gboolean        build_extension;
   gboolean        separate_locales;
   gboolean        sandboxed;
 };
@@ -359,6 +361,19 @@ builder_context_set_build_runtime (BuilderContext *self,
                                    gboolean        build_runtime)
 {
   self->build_runtime = !!build_runtime;
+}
+
+gboolean
+builder_context_get_build_extension (BuilderContext *self)
+{
+  return self->build_extension;
+}
+
+void
+builder_context_set_build_extension (BuilderContext *self,
+                                     gboolean        build_extension)
+{
+  self->build_extension = !!build_extension;
 }
 
 gboolean

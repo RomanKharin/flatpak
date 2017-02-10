@@ -412,7 +412,7 @@ main (int    argc,
 
   cache_branch = g_path_get_basename (manifest_path);
 
-  cache = builder_cache_new (builder_context_get_cache_dir (build_context), app_dir, cache_branch);
+  cache = builder_cache_new (build_context, app_dir, cache_branch);
   if (!builder_cache_open (cache, &error))
     {
       g_printerr ("Error opening cache: %s\n", error->message);
@@ -482,7 +482,7 @@ main (int    argc,
       g_print ("Exporting %s to repo\n", builder_manifest_get_id (manifest));
 
       if (!do_export (build_context, &error,
-                      builder_context_get_build_runtime (build_context),
+                      FALSE,
                       "--exclude=/lib/debug/*",
                       "--include=/lib/debug/app",
                       builder_context_get_separate_locales (build_context) ? "--exclude=/share/runtime/locale/*/*" : skip_arg,

@@ -64,11 +64,34 @@ gboolean flatpak_is_in_sandbox (void);
 const char * flatpak_get_arch (void);
 const char ** flatpak_get_arches (void);
 
+const char ** flatpak_get_gl_drivers (void);
+gboolean flatpak_extension_matches_reason (const char *extension_id,
+                                           const char *reason,
+                                           gboolean default_value);
+
 const char * flatpak_get_bwrap (void);
 
 char ** flatpak_get_current_locale_subpaths (void);
 
 void flatpak_migrate_from_xdg_app (void);
+
+GFile *flatpak_file_new_tmp_in (GFile *dir,
+                                const char *templatename,
+                                GError        **error);
+
+gboolean flatpak_write_update_checksum (GOutputStream  *out,
+                                        gconstpointer   data,
+                                        gsize           len,
+                                        gsize          *out_bytes_written,
+                                        GChecksum      *checksum,
+                                        GCancellable   *cancellable,
+                                        GError        **error);
+
+gboolean flatpak_splice_update_checksum (GOutputStream  *out,
+                                         GInputStream   *in,
+                                         GChecksum      *checksum,
+                                         GCancellable   *cancellable,
+                                         GError        **error);
 
 GBytes * flatpak_read_stream (GInputStream *in,
                               gboolean      null_terminate,
@@ -324,6 +347,10 @@ typedef struct
   char *ref;
   char *directory;
   char *files_path;
+  char *subdir_suffix;
+  char *add_ld_path;
+  char **merge_dirs;
+  int priority;
   gboolean needs_tmpfs;
   gboolean is_unmaintained;
 } FlatpakExtension;
@@ -352,6 +379,10 @@ gboolean flatpak_openat_noatime (int            dfd,
                                  int           *ret_fd,
                                  GCancellable  *cancellable,
                                  GError       **error);
+
+gboolean flatpak_copy_bytes (int fdf,
+                             int fdt,
+                             GError **error);
 
 typedef enum {
   FLATPAK_CP_FLAGS_NONE = 0,
